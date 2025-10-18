@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 #.venv\Scripts\activate
@@ -28,6 +29,9 @@ def get_company_tickers():
 
 def get_selected_ticker(ticker):
     return yf.Ticker(select_company)
+#st.cache_data
+def get_selected_ticker(ticker_symbol):
+    return yf.Ticker(ticker_symbol)
 
 @st.cache_data
 def get_company_imagem(searchword, key):
@@ -44,8 +48,9 @@ def get_company_imagem(searchword, key):
 
 company_list = get_company_tickers()
 select_company = st.selectbox(label="Select a company",options=company_list)
+selected_ticker = get_selected_ticker(select_company)
 company_data = get_selected_ticker(select_company).info
-action_history = get_selected_ticker(select_company).history(period="max").reset_index()
+action_history = selected_ticker.history(period="max").reset_index()
 min_date = action_history["Date"].min()
 max_date = action_history["Date"].max()
 
@@ -67,18 +72,16 @@ with st.sidebar:
     **Market Cap**: {company_data.get("marketCap", "N/A"):,}    
     **Current Price**: {company_data.get("currentPrice", "N/A")}    
     **Target Mean Price**: {company_data.get("targetMeanPrice", "N/A")}  
-    **Dividend Yield (%)**: {company_data.get("dividendYield", "N/A")}  
+    **Dividend Yield**: {company_data.get("dividendYield", "N/A")}  
     **P/L (PE Ratio)**: {company_data.get("traillingPE", "N/A")}    
     """)
     min_select, max_select = st.select_slider(label="Select time interval",options=action_history["Date"], value=(min_date, max_date))
-    min_select = pd.to_datetime(min_select)
-    max_select = pd.to_datetime(max_select)
 
-df_filtered = action_history[(action_history["Date"] <= max_select) &  (action_history["Date"] >= min_date )]
+df_filtered = action_history[(action_history["Date"] <= max_select) &  (action_history["Date"] >= min_select )]
 df_filtered["avarage moving"] = df_filtered["Close"].rolling(window=50).mean()
 
 
-line_chart_low = px.line(data_frame=df_filtered, x="Date", y="Low", title="'low' value of shares over time")
+line_chart_low = px.line(data_frame=df_filtered, x="Date", y="Low", title="'Low' value of shares over time")
 line_chart_high = px.line(data_frame=df_filtered, x="Date", y="High",title="'High' value of shares over time")
 low_high_comparision = px.line(data_frame=df_filtered, x="Date", y=["Open", "Close"],
                                color_discrete_map={"Open": "blue", "Close": "grey"}, title="Comparison of opening and closing stock prices")
@@ -102,6 +105,15 @@ with sub_column1:
     st.plotly_chart(historiogram_closes)
 with sub_columns2:
     st.plotly_chart(avarage_moving_comparision)
+
+fig_candlestick = go.Figure(data=[go.Candlestick(x=df_filtered["Date"],
+                                                 open=df_filtered["Open"],
+                                                 high=df_filtered["High"],
+                                                 low=df_filtered["Low"],
+                                                 close=df_filtered["Close"])])
+fig_candlestick.update_layout(title="Candlestick Chart (Opening and Closing Prices, High and Low)",
+                              xaxis_rangeslider_visible=False)
+st.plotly_chart(fig_candlestick)
 
 with st.expander(label="Data Download"):
     st.dataframe(df_filtered)
